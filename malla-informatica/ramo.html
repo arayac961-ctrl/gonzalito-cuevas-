@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ramo · Malla Informática</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%231b4577'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero hero-ramo">
+    <div class="interior">
+      <a class="volver" href="index.html">← Volver a la malla</a>
+      <div class="etiquetas" id="etiquetas"></div>
+      <h1 id="titulo">Cargando...</h1>
+    </div>
+  </header>
+
+  <main class="pagina" id="pagina"></main>
+
+  <footer>La malla curricular puede experimentar cambios debido a que está sujeta a revisión. Los contenidos de cada ramo son referenciales.</footer>
+
+  <script>
+    const $ = id => document.getElementById(id);
+
+    function crear(tag, clase, texto) {
+      const el = document.createElement(tag);
+      if (clase) el.className = clase;
+      if (texto !== undefined) el.textContent = texto;
+      return el;
+    }
+
+    function textoSobre(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      const luz = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+      return luz > 0.6 ? "#0f2a43" : "#ffffff";
+    }
+
+    function mostrarError(msg) {
+      $("titulo").textContent = "Ramo no disponible";
+      $("pagina").appendChild(crear("p", "error", msg));
+    }
+
+    function pintar(d) {
+      document.title = d.nombre + " · Malla Informática";
+      $("titulo").textContent = d.nombre;
+
+      const areas = {};
+      d.areas.forEach(a => areas[a.id] = a);
+
+      const et = $("etiquetas");
+      et.appendChild(crear("span", "etiqueta", "Semestre " + d.semestre));
+      const etArea = crear("span", "etiqueta");
+      const punto = crear("span", "punto");
+      punto.style.background = d.area.color;
+      etArea.append(punto, d.area.nombre);
+      et.appendChild(etArea);
+
+      const pagina = $("pagina");
+
+      const desc = crear("section", "tarjeta");
+      desc.append(crear("h2", "", "De qué trata"), crear("p", "", d.descripcion));
+      pagina.appendChild(desc);
+
+      const cont = crear("section", "tarjeta");
+      cont.appendChild(crear("h2", "", "Contenidos del ramo"));
+      const lista = crear("ol", "unidades");
+      d.contenidos.forEach(c => {
+        const li = crear("li");
+        const div = crear("div");
+        div.append(crear("small", "", "Unidad " + c.orden), c.tema);
+        li.appendChild(div);
+        lista.appendChild(li);
+      });
+      cont.appendChild(lista);
+      pagina.appendChild(cont);
+
+      const otros = crear("section", "tarjeta");
+      otros.appendChild(crear("h2", "", "Otros ramos del semestre " + d.semestre));
+      const chips = crear("div", "otros");
+      d.semestre_ramos.forEach(r => {
+        const a = crear("a", r.id === d.id ? "actual" : "", r.nombre);
+        a.href = "ramo.html?id=" + r.id;
+        const col = areas[r.area_id].color;
+        a.style.background = col;
+        a.style.color = textoSobre(col);
+        chips.appendChild(a);
+      });
+      otros.appendChild(chips);
+      pagina.appendChild(otros);
+
+      const nav = crear("nav", "navegacion");
+      if (d.anterior) {
+        const a = crear("a");
+        a.href = "ramo.html?id=" + d.anterior.id;
+        a.append(crear("small", "", "← Anterior"), d.anterior.nombre);
+        nav.appendChild(a);
+      }
+      if (d.siguiente) {
+        const a = crear("a", "sig");
+        a.href = "ramo.html?id=" + d.siguiente.id;
+        a.append(crear("small", "", "Siguiente →"), d.siguiente.nombre);
+        nav.appendChild(a);
+      }
+      pagina.appendChild(nav);
+    }
+
+    const id = new URLSearchParams(location.search).get("id");
+
+    if (!id) {
+      mostrarError("No se indicó qué ramo mostrar. Vuelve a la malla y elige uno.");
+    } else {
+      fetch("api.php?ramo=" + encodeURIComponent(id))
+        .then(r => r.json().then(d => ({ ok: r.ok, d })))
+        .then(({ ok, d }) => ok ? pintar(d) : mostrarError(d.error || "No se pudo cargar el ramo."))
+        .catch(() => mostrarError("No se pudo conectar con el servidor."));
+    }
+  </script>
+</body>
+</html>

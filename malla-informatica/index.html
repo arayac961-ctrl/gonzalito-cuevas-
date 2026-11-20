@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Malla Ing. Civil en Computación e Informática</title>
+  <meta name="description" content="Malla curricular de Ingeniería Civil en Computación e Informática: revisa cada ramo y sus contenidos.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%231b4577'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero">
+    <span class="universidad">Universidad Central</span>
+    <h1>Ingeniería Civil en Computación e Informática</h1>
+    <p>Explora la malla curricular completa. Haz clic en cualquier ramo para ver de qué trata y qué contenidos incluye.</p>
+    <div class="estadisticas" id="estadisticas"></div>
+  </header>
+
+  <section class="panel">
+    <input class="buscador" id="buscador" type="search" placeholder="Buscar un ramo (ej: cálculo, datos, software)..." autocomplete="off">
+    <div class="leyenda" id="leyenda"></div>
+  </section>
+
+  <div class="resultado" id="resultado"></div>
+
+  <main class="malla" id="malla" aria-live="polite">
+    <p>Cargando malla...</p>
+  </main>
+
+  <p class="nota">Licenciatura en Ciencias de la Ingeniería: semestres 1 a 8 · Título profesional de Ingeniero/a Civil en Computación e Informática: semestres 1 a 11.</p>
+
+  <footer>La malla curricular puede experimentar cambios debido a que está sujeta a revisión. Los contenidos de cada ramo son referenciales.</footer>
+
+  <script>
+    let datos = null;
+    let areaActiva = null;
+
+    const $ = id => document.getElementById(id);
+
+    function crear(tag, clase, texto) {
+      const el = document.createElement(tag);
+      if (clase) el.className = clase;
+      if (texto !== undefined) el.textContent = texto;
+      return el;
+    }
+
+    function normaliza(s) {
+      return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    }
+
+    function textoSobre(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      const luz = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+      return luz > 0.6 ? "#0f2a43" : "#ffffff";
+    }
+
+    function pintar() {
+      const areas = {};
+      datos.areas.forEach(a => areas[a.id] = a);
+
+      const estad = $("estadisticas");
+      const semestres = new Set(datos.ramos.map(r => r.semestre)).size;
+      [[semestres, "semestres"], [datos.ramos.length, "ramos"]].forEach(([n, t]) => {
+        const s = crear("span");
+        s.append(crear("b", "", n), " " + t);
+        estad.appendChild(s);
+      });
+
+      const leyenda = $("leyenda");
+      datos.areas.forEach(a => {
+        const b = crear("button", "chip");
+        b.type = "button";
+        const punto = crear("span", "punto");
+        punto.style.background = a.color;
+        b.append(punto, a.nombre.replace("Área Formación ", ""));
+        b.title = a.nombre;
+        b.addEventListener("click", () => {
+          areaActiva = areaActiva === a.id ? null : a.id;
+          leyenda.querySelectorAll(".chip").forEach((c, i) => c.classList.toggle("activo", datos.areas[i].id === areaActiva));
+          filtrar();
+        });
+        leyenda.appendChild(b);
+      });
+
+      const porSemestre = {};
+      datos.ramos.forEach(r => (porSemestre[r.semestre] = porSemestre[r.semestre] || []).push(r));
+
+      const malla = $("malla");
+      malla.innerHTML = "";
+      Object.keys(porSemestre).map(Number).sort((a, b) => a - b).forEach(sem => {
+        const col = crear("section", "semestre");
+        col.appendChild(crear("h2", "", "Semestre " + sem));
+        porSemestre[sem].forEach(r => {
+          const a = areas[r.area_id];
+          const el = crear("a", "ramo", r.nombre);
+          el.href = "ramo.html?id=" + r.id;
+          el.style.background = a.color;
+          el.style.color = textoSobre(a.color);
+          el.dataset.area = r.area_id;
+          el.dataset.nombre = normaliza(r.nombre);
+          col.appendChild(el);
+        });
+        malla.appendChild(col);
+      });
+    }
+
+    function filtrar() {
+      const q = normaliza($("buscador").value.trim());
+      let visibles = 0;
+      document.querySelectorAll(".ramo").forEach(el => {
+        const ok = (!areaActiva || Number(el.dataset.area) === areaActiva) && el.dataset.nombre.includes(q);
+        el.classList.toggle("apagado", !ok);
+        if (ok) visibles++;
+      });
+      const filtrando = q !== "" || areaActiva !== null;
+      $("resultado").textContent = filtrando ? visibles + " ramo(s) coinciden con tu búsqueda" : "";
+    }
+
+    $("buscador").addEventListener("input", filtrar);
+
+    fetch("api.php")
+      .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(d => { datos = d; pintar(); })
+      .catch(() => {
+        $("malla").innerHTML = "";
+        $("malla").appendChild(crear("p", "error", "No se pudo cargar la malla. Revisa la conexión con la base de datos."));
+      });
+  </script>
+</body>
+</html>
