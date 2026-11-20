@@ -1,23 +1,23 @@
 # Personas Web
 
-Página web simple en PHP + MySQL (phpMyAdmin) que muestra 3 personas desde la base de datos.
-
-## Estructura
+Página en HTML que muestra 3 personas desde MySQL (phpMyAdmin).
+`index.html` pide los datos a `api.php`, que los lee de la base.
 
 ```
 personas-web/
-├── index.php        # Página principal
-├── conexion.php     # Conexión a MySQL
-├── style.css        # Estilos
-├── database.sql     # Script de la base de datos
-└── README.md
+├── index.html      # Página (HTML + JavaScript)
+├── api.php         # Devuelve las personas en JSON
+├── conexion.php    # Conexión a MySQL
+├── style.css       # Estilos
+└── database.sql    # Base de datos y las 3 personas
 ```
 
-## Cómo ejecutarlo
+## Local (XAMPP)
+1. Inicia Apache y MySQL.
+2. Copia la carpeta a `C:\xampp\htdocs\personas-web`.
+3. En phpMyAdmin → Importar → `database.sql`.
+4. Abre `http://localhost/personas-web/`.
 
-1. Instala XAMPP (o Laragon) e inicia **Apache** y **MySQL**.
-2. Copia la carpeta `personas-web` en `C:\xampp\htdocs\`.
-3. Abre `http://localhost/phpmyadmin`, ve a la pestaña **Importar** y sube `database.sql`.
-4. Abre `http://localhost/personas-web/` en el navegador.
-
-Si tu MySQL tiene contraseña, cámbiala en `conexion.php`.
+## Servidor (Amazon Linux 2023)
+El usuario y la clave de la base van en `config.local.php` (no se sube a GitHub).
+Actualizar: `cd /var/www/repo && sudo git pull`

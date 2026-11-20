@@ -1,13 +1,15 @@
 <?php
-// Datos por defecto de XAMPP / Laragon / WAMP
+// Valores por defecto (XAMPP / Laragon / WAMP)
 $host = "localhost";
 $bd   = "personas_db";
 $user = "root";
 $pass = "";
 
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$bd;charset=utf8mb4", $user, $pass);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    die("Error de conexión: " . $e->getMessage());
+// En el servidor se crea config.local.php (no se sube a GitHub) para
+// cambiar usuario y clave sin tocar este archivo.
+if (file_exists(__DIR__ . "/config.local.php")) {
+    require __DIR__ . "/config.local.php";
 }
+
+$pdo = new PDO("mysql:host=$host;dbname=$bd;charset=utf8mb4", $user, $pass);
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);

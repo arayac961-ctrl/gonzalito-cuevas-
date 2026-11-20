@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuestro equipo</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%234f46e5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero">
+    <span class="badge" id="contador">Equipo</span>
+    <h1>Nuestro equipo</h1>
+    <p>Conoce a las personas que están detrás del proyecto</p>
+  </header>
+
+  <main class="tarjetas" id="tarjetas" aria-live="polite">
+    <div class="tarjeta esqueleto"></div>
+    <div class="tarjeta esqueleto"></div>
+    <div class="tarjeta esqueleto"></div>
+  </main>
+
+  <footer>Proyecto HTML + PHP + MySQL · Servidor en AWS</footer>
+
+  <script>
+    const contenedor = document.getElementById("tarjetas");
+    const contador = document.getElementById("contador");
+
+    function crear(tag, clase, texto) {
+      const el = document.createElement(tag);
+      if (clase) el.className = clase;
+      if (texto !== undefined) el.textContent = texto;
+      return el;
+    }
+
+    fetch("api.php")
+      .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(personas => {
+        contenedor.innerHTML = "";
+        contador.textContent = personas.length + " integrantes";
+
+        personas.forEach((p, i) => {
+          const tarjeta = crear("article", "tarjeta");
+          const avatar = crear("div", "avatar color" + (i % 3), p.nombre.charAt(0).toUpperCase());
+          const nombre = crear("h2", "", p.nombre);
+          const cargo = crear("p", "cargo", p.cargo);
+          const correo = crear("a", "boton", "Escribir un correo");
+          correo.href = "mailto:" + p.correo;
+          correo.title = p.correo;
+
+          tarjeta.append(avatar, nombre, cargo, correo);
+          contenedor.appendChild(tarjeta);
+        });
+      })
+      .catch(() => {
+        contenedor.innerHTML = "";
+        contador.textContent = "Sin conexión";
+        contenedor.appendChild(crear("p", "error", "No se pudieron cargar los datos. Revisa la base de datos."));
+      });
+  </script>
+</body>
+</html>
