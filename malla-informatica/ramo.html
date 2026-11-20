@@ -3,11 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ramo · Malla Informática</title>
+  <title>Ramo · Malla y Foro Informática</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%231b4577'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <nav class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html">Malla &amp; Foro ICCI</a>
+      <div class="auth-bar" id="authBar">
+        <span class="auth-cargando">Verificando sesión...</span>
+      </div>
+    </div>
+  </nav>
+
   <header class="hero hero-ramo">
     <div class="interior">
       <a class="volver" href="index.html">← Volver a la malla</a>
@@ -20,8 +29,41 @@
 
   <footer>La malla curricular puede experimentar cambios debido a que está sujeta a revisión. Los contenidos de cada ramo son referenciales.</footer>
 
+  <!-- Modal de Login / Registro -->
+  <div class="modal-backdrop" id="authModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+      <button type="button" class="modal-cerrar" id="cerrarModal" aria-label="Cerrar">&times;</button>
+      <div class="modal-tabs">
+        <button type="button" class="tab-btn activo" data-tab="login">Iniciar sesión</button>
+        <button type="button" class="tab-btn" data-tab="registro">Crear cuenta</button>
+      </div>
+      <h2 id="modalTitulo">Inicia sesión</h2>
+      <p class="modal-sub" id="modalSub">Ingresa con tu cuenta para subir proyectos y comentar en este ramo.</p>
+      <div class="alerta-error" id="authError" hidden></div>
+      <form id="authForm">
+        <div class="campo" id="campoNombre" hidden>
+          <label for="authNombre">Nombre completo</label>
+          <input type="text" id="authNombre" maxlength="80" placeholder="Ej: Carlos Araya">
+        </div>
+        <div class="campo">
+          <label for="authEmail">Correo electrónico</label>
+          <input type="email" id="authEmail" required maxlength="120" placeholder="tu.correo@ejemplo.cl">
+        </div>
+        <div class="campo">
+          <label for="authPassword">Contraseña</label>
+          <input type="password" id="authPassword" required minlength="6" placeholder="Mínimo 6 caracteres">
+        </div>
+        <button type="submit" class="btn-primario btn-full" id="authSubmit">Entrar</button>
+      </form>
+    </div>
+  </div>
+
   <script>
     const $ = id => document.getElementById(id);
+    const ramoId = new URLSearchParams(location.search).get("id");
+    let estadoAuth = { autenticado: false, usuario: null, csrf_token: "" };
+    let modoAuth = "login";
+    let datosRamo = null;
 
     function crear(tag, clase, texto) {
       const el = document.createElement(tag);
@@ -36,19 +78,372 @@
       return luz > 0.6 ? "#0f2a43" : "#ffffff";
     }
 
+    function formatearTamano(bytes) {
+      if (!bytes) return "";
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+    }
+
+    function formatearFecha(iso) {
+      if (!iso) return "";
+      const f = new Date(iso.replace(" ", "T"));
+      if (isNaN(f)) return iso;
+      return f.toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    }
+
+    function pintarAuthBar() {
+      const bar = $("authBar");
+      bar.innerHTML = "";
+      if (estadoAuth.autenticado && estadoAuth.usuario) {
+        const saludo = crear("span", "user-badge", "Hola, " + estadoAuth.usuario.nombre);
+        const btnSalir = crear("button", "btn-nav btn-nav-sec", "Cerrar sesión");
+        btnSalir.type = "button";
+        btnSalir.addEventListener("click", cerrarSesion);
+        bar.append(saludo, btnSalir);
+      } else {
+        const btnLogin = crear("button", "btn-nav btn-nav-sec", "Iniciar sesión");
+        btnLogin.type = "button";
+        btnLogin.addEventListener("click", () => abrirModal("login"));
+        const btnReg = crear("button", "btn-nav btn-nav-pri", "Registrarse");
+        btnReg.type = "button";
+        btnReg.addEventListener("click", () => abrirModal("registro"));
+        bar.append(btnLogin, btnReg);
+      }
+    }
+
+    function abrirModal(modo) {
+      modoAuth = modo;
+      $("authError").hidden = true;
+      $("authForm").reset();
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("activo", b.dataset.tab === modo));
+      if (modo === "registro") {
+        $("modalTitulo").textContent = "Crear cuenta";
+        $("modalSub").textContent = "Regístrate para publicar proyectos y participar en el foro de este ramo.";
+        $("campoNombre").hidden = false;
+        $("authNombre").required = true;
+        $("authSubmit").textContent = "Registrarme";
+      } else {
+        $("modalTitulo").textContent = "Inicia sesión";
+        $("modalSub").textContent = "Ingresa con tu cuenta para subir proyectos y comentar en este ramo.";
+        $("campoNombre").hidden = true;
+        $("authNombre").required = false;
+        $("authSubmit").textContent = "Entrar";
+      }
+      $("authModal").hidden = false;
+    }
+
+    function cerrarModal() {
+      $("authModal").hidden = true;
+    }
+
+    $("cerrarModal").addEventListener("click", cerrarModal);
+    $("authModal").addEventListener("click", e => { if (e.target === $("authModal")) cerrarModal(); });
+    document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => abrirModal(b.dataset.tab)));
+
+    $("authForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      $("authError").hidden = true;
+      const payload = {
+        nombre: $("authNombre").value.trim(),
+        email: $("authEmail").value.trim(),
+        password: $("authPassword").value
+      };
+      try {
+        const res = await fetch("auth.php?accion=" + modoAuth, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          $("authError").textContent = data.error || "Error al procesar la solicitud.";
+          $("authError").hidden = false;
+          return;
+        }
+        estadoAuth = { autenticado: true, usuario: data.usuario, csrf_token: data.csrf_token };
+        pintarAuthBar();
+        cerrarModal();
+        if (datosRamo) pintar(datosRamo);
+      } catch {
+        $("authError").textContent = "No se pudo conectar con el servidor.";
+        $("authError").hidden = false;
+      }
+    });
+
+    async function cerrarSesion() {
+      await fetch("auth.php?accion=logout", { method: "POST" });
+      estadoAuth = { autenticado: false, usuario: null, csrf_token: "" };
+      pintarAuthBar();
+      if (datosRamo) pintar(datosRamo);
+    }
+
     function mostrarError(msg) {
       $("titulo").textContent = "Ramo no disponible";
+      $("pagina").innerHTML = "";
       $("pagina").appendChild(crear("p", "error", msg));
     }
 
+    async function recargarRamo() {
+      const res = await fetch("api.php?ramo=" + encodeURIComponent(ramoId));
+      const d = await res.json();
+      if (res.ok) {
+        datosRamo = d;
+        pintar(d);
+      }
+    }
+
+    function construirSeccionForo(d) {
+      const foro = crear("section", "tarjeta foro-seccion");
+      const cabecera = crear("div", "foro-header");
+      const h2 = crear("h2", "", "Foro y Proyectos de la Asignatura (" + d.proyectos.length + ")");
+      cabecera.appendChild(h2);
+      foro.appendChild(cabecera);
+
+      // Caja para publicar proyecto
+      if (estadoAuth.autenticado) {
+        const formBox = crear("form", "form-proyecto");
+        formBox.appendChild(crear("h3", "", "Subir un proyecto o material a " + d.nombre));
+
+        const errBox = crear("div", "alerta-error");
+        errBox.hidden = true;
+        formBox.appendChild(errBox);
+
+        const okBox = crear("div", "alerta-ok");
+        okBox.hidden = true;
+        formBox.appendChild(okBox);
+
+        const cTitulo = crear("div", "campo");
+        cTitulo.appendChild(crear("label", "", "Título del proyecto *"));
+        const inTitulo = crear("input");
+        inTitulo.type = "text";
+        inTitulo.required = true;
+        inTitulo.maxLength = 160;
+        inTitulo.placeholder = "Ej: Sistema de inventario en PHP y MySQL / Informe Lab 2";
+        cTitulo.appendChild(inTitulo);
+
+        const cDesc = crear("div", "campo");
+        cDesc.appendChild(crear("label", "", "Descripción, tecnologías y notas *"));
+        const inDesc = crear("textarea");
+        inDesc.rows = 3;
+        inDesc.required = true;
+        inDesc.placeholder = "Explica de qué trata tu proyecto, cómo ejecutarlo o qué contiene el archivo...";
+        cDesc.appendChild(inDesc);
+
+        const filaExtras = crear("div", "fila-dos");
+
+        const cArchivo = crear("div", "campo");
+        cArchivo.appendChild(crear("label", "", "Archivo adjunto (ZIP, PDF, código, máx. 25 MB)"));
+        const inFile = crear("input");
+        inFile.type = "file";
+        cArchivo.appendChild(inFile);
+
+        const cRepo = crear("div", "campo");
+        cRepo.appendChild(crear("label", "", "Enlace a GitHub / Drive / Demo (opcional)"));
+        const inRepo = crear("input");
+        inRepo.type = "url";
+        inRepo.placeholder = "https://github.com/usuario/proyecto";
+        cRepo.appendChild(inRepo);
+
+        filaExtras.append(cArchivo, cRepo);
+
+        const btnPub = crear("button", "btn-primario", "Publicar proyecto");
+        btnPub.type = "submit";
+
+        formBox.append(cTitulo, cDesc, filaExtras, btnPub);
+
+        formBox.addEventListener("submit", async e => {
+          e.preventDefault();
+          errBox.hidden = true;
+          okBox.hidden = true;
+          btnPub.disabled = true;
+          btnPub.textContent = "Subiendo...";
+
+          const fd = new FormData();
+          fd.append("csrf_token", estadoAuth.csrf_token);
+          fd.append("ramo_id", d.id);
+          fd.append("titulo", inTitulo.value.trim());
+          fd.append("descripcion", inDesc.value.trim());
+          fd.append("repo_url", inRepo.value.trim());
+          if (inFile.files[0]) {
+            fd.append("archivo", inFile.files[0]);
+          }
+
+          try {
+            const res = await fetch("api.php?accion=subir_proyecto", {
+              method: "POST",
+              body: fd
+            });
+            const resp = await res.json();
+            if (!res.ok) {
+              errBox.textContent = resp.error || "No se pudo publicar el proyecto.";
+              errBox.hidden = false;
+            } else {
+              await recargarRamo();
+            }
+          } catch {
+            errBox.textContent = "Error de red al subir el proyecto.";
+            errBox.hidden = false;
+          } finally {
+            btnPub.disabled = false;
+            btnPub.textContent = "Publicar proyecto";
+          }
+        });
+
+        foro.appendChild(formBox);
+      } else {
+        const aviso = crear("div", "aviso-login");
+        const p = crear("p", "", "Inicia sesión o regístrate para subir archivos de tus proyectos y comentar en este ramo.");
+        const acciones = crear("div", "aviso-acciones");
+        const b1 = crear("button", "btn-primario", "Iniciar sesión");
+        b1.type = "button";
+        b1.addEventListener("click", () => abrirModal("login"));
+        const b2 = crear("button", "btn-secundario", "Crear cuenta");
+        b2.type = "button";
+        b2.addEventListener("click", () => abrirModal("registro"));
+        acciones.append(b1, b2);
+        aviso.append(p, acciones);
+        foro.appendChild(aviso);
+      }
+
+      // Lista de proyectos publicados
+      if (!d.proyectos || d.proyectos.length === 0) {
+        foro.appendChild(crear("p", "sin-proyectos", "Aún no hay proyectos publicados en esta asignatura. ¡Sé el primero en aportar!"));
+        return foro;
+      }
+
+      const listaProy = crear("div", "lista-proyectos");
+      d.proyectos.forEach(p => {
+        const card = crear("article", "proyecto-card");
+
+        const top = crear("div", "proyecto-top");
+        const info = crear("div");
+        info.appendChild(crear("h3", "", p.titulo));
+        const meta = crear("p", "proyecto-meta", "Publicado por " + p.autor_nombre + " · " + formatearFecha(p.creado_en));
+        info.appendChild(meta);
+        top.appendChild(info);
+
+        if (estadoAuth.autenticado && (estadoAuth.usuario.id === p.usuario_id || estadoAuth.usuario.rol === "admin")) {
+          const btnDel = crear("button", "btn-peligro-sm", "Eliminar");
+          btnDel.type = "button";
+          btnDel.addEventListener("click", async () => {
+            if (!confirm("¿Seguro que quieres eliminar este proyecto?")) return;
+            const res = await fetch("api.php?accion=eliminar_proyecto", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": estadoAuth.csrf_token
+              },
+              body: JSON.stringify({ proyecto_id: p.id })
+            });
+            if (res.ok) await recargarRamo();
+          });
+          top.appendChild(btnDel);
+        }
+
+        card.appendChild(top);
+        card.appendChild(crear("p", "proyecto-desc", p.descripcion));
+
+        // Adjuntos y enlaces
+        const adjuntos = crear("div", "proyecto-adjuntos");
+        if (p.archivo_nombre) {
+          const linkDescarga = crear("a", "pill-recurso pill-archivo", "Descargar: " + p.archivo_nombre + " (" + formatearTamano(p.archivo_tamano) + ")");
+          linkDescarga.href = "api.php?accion=descargar&proyecto_id=" + p.id;
+          adjuntos.appendChild(linkDescarga);
+        }
+        if (p.repo_url) {
+          const linkRepo = crear("a", "pill-recurso pill-repo", "Ver repositorio / enlace externo ↗");
+          linkRepo.href = p.repo_url;
+          linkRepo.target = "_blank";
+          linkRepo.rel = "noopener noreferrer";
+          adjuntos.appendChild(linkRepo);
+        }
+        if (adjuntos.children.length > 0) {
+          card.appendChild(adjuntos);
+        }
+
+        // Comentarios del proyecto
+        const comWrap = crear("div", "comentarios-box");
+        comWrap.appendChild(crear("h4", "", "Comentarios (" + p.comentarios.length + ")"));
+
+        if (p.comentarios.length > 0) {
+          const ul = crear("ul", "lista-comentarios");
+          p.comentarios.forEach(c => {
+            const li = crear("li", "comentario-item");
+            const cHead = crear("div", "comentario-head");
+            cHead.append(
+              crear("strong", "", c.autor_nombre),
+              crear("span", "", formatearFecha(c.creado_en))
+            );
+            if (estadoAuth.autenticado && (estadoAuth.usuario.id === c.usuario_id || estadoAuth.usuario.rol === "admin")) {
+              const bDelC = crear("button", "btn-link-del", "Borrar");
+              bDelC.type = "button";
+              bDelC.addEventListener("click", async () => {
+                const res = await fetch("api.php?accion=eliminar_comentario", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-Token": estadoAuth.csrf_token
+                  },
+                  body: JSON.stringify({ comentario_id: c.id })
+                });
+                if (res.ok) await recargarRamo();
+              });
+              cHead.appendChild(bDelC);
+            }
+            li.append(cHead, crear("p", "", c.contenido));
+            ul.appendChild(li);
+          });
+          comWrap.appendChild(ul);
+        }
+
+        if (estadoAuth.autenticado) {
+          const fCom = crear("form", "form-comentario");
+          const inCom = crear("input");
+          inCom.type = "text";
+          inCom.required = true;
+          inCom.maxLength = 1000;
+          inCom.placeholder = "Escribe una duda, aporte o feedback sobre este proyecto...";
+          const bCom = crear("button", "btn-secundario", "Comentar");
+          bCom.type = "submit";
+          fCom.append(inCom, bCom);
+
+          fCom.addEventListener("submit", async e => {
+            e.preventDefault();
+            const txt = inCom.value.trim();
+            if (!txt) return;
+            bCom.disabled = true;
+            const res = await fetch("api.php?accion=comentar", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": estadoAuth.csrf_token
+              },
+              body: JSON.stringify({ proyecto_id: p.id, contenido: txt })
+            });
+            bCom.disabled = false;
+            if (res.ok) await recargarRamo();
+          });
+          comWrap.appendChild(fCom);
+        }
+
+        card.appendChild(comWrap);
+        listaProy.appendChild(card);
+      });
+
+      foro.appendChild(listaProy);
+      return foro;
+    }
+
     function pintar(d) {
-      document.title = d.nombre + " · Malla Informática";
+      document.title = d.nombre + " · Malla y Foro Informática";
       $("titulo").textContent = d.nombre;
 
       const areas = {};
       d.areas.forEach(a => areas[a.id] = a);
 
       const et = $("etiquetas");
+      et.innerHTML = "";
       et.appendChild(crear("span", "etiqueta", "Semestre " + d.semestre));
       const etArea = crear("span", "etiqueta");
       const punto = crear("span", "punto");
@@ -57,6 +452,7 @@
       et.appendChild(etArea);
 
       const pagina = $("pagina");
+      pagina.innerHTML = "";
 
       const desc = crear("section", "tarjeta");
       desc.append(crear("h2", "", "De qué trata"), crear("p", "", d.descripcion));
@@ -74,6 +470,9 @@
       });
       cont.appendChild(lista);
       pagina.appendChild(cont);
+
+      // Sección Foro y Proyectos
+      pagina.appendChild(construirSeccionForo(d));
 
       const otros = crear("section", "tarjeta");
       otros.appendChild(crear("h2", "", "Otros ramos del semestre " + d.semestre));
@@ -105,15 +504,27 @@
       pagina.appendChild(nav);
     }
 
-    const id = new URLSearchParams(location.search).get("id");
-
-    if (!id) {
+    if (!ramoId) {
       mostrarError("No se indicó qué ramo mostrar. Vuelve a la malla y elige uno.");
     } else {
-      fetch("api.php?ramo=" + encodeURIComponent(id))
-        .then(r => r.json().then(d => ({ ok: r.ok, d })))
-        .then(({ ok, d }) => ok ? pintar(d) : mostrarError(d.error || "No se pudo cargar el ramo."))
-        .catch(() => mostrarError("No se pudo conectar con el servidor."));
+      Promise.all([
+        fetch("auth.php?accion=estado").then(r => r.json()).catch(() => ({ autenticado: false })),
+        fetch("api.php?ramo=" + encodeURIComponent(ramoId)).then(r => r.json().then(d => ({ ok: r.ok, d })))
+      ])
+        .then(([auth, { ok, d }]) => {
+          estadoAuth = auth;
+          pintarAuthBar();
+          if (ok) {
+            datosRamo = d;
+            pintar(d);
+          } else {
+            mostrarError(d.error || "No se pudo cargar el ramo.");
+          }
+        })
+        .catch(() => {
+          pintarAuthBar();
+          mostrarError("No se pudo conectar con el servidor.");
+        });
     }
   </script>
 </body>

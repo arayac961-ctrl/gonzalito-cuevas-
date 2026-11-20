@@ -3,16 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Malla Ing. Civil en Computación e Informática</title>
-  <meta name="description" content="Malla curricular de Ingeniería Civil en Computación e Informática: revisa cada ramo y sus contenidos.">
+  <title>Malla y Foro de Proyectos · Ing. Civil en Computación e Informática</title>
+  <meta name="description" content="Malla curricular y foro colaborativo de proyectos por asignatura de Ingeniería Civil en Computación e Informática.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%231b4577'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <nav class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html">Malla &amp; Foro ICCI</a>
+      <div class="auth-bar" id="authBar">
+        <span class="auth-cargando">Verificando sesión...</span>
+      </div>
+    </div>
+  </nav>
+
   <header class="hero">
-    <span class="universidad">Universidad Central</span>
+    <span class="universidad">Universidad Central · Repositorio Colaborativo</span>
     <h1>Ingeniería Civil en Computación e Informática</h1>
-    <p>Explora la malla curricular completa. Haz clic en cualquier ramo para ver de qué trata y qué contenidos incluye.</p>
+    <p>Explora la malla curricular, entra a cada asignatura y comparte proyectos, apuntes, código y comentarios con tus compañeros.</p>
     <div class="estadisticas" id="estadisticas"></div>
   </header>
 
@@ -31,9 +40,40 @@
 
   <footer>La malla curricular puede experimentar cambios debido a que está sujeta a revisión. Los contenidos de cada ramo son referenciales.</footer>
 
+  <!-- Modal de Login / Registro -->
+  <div class="modal-backdrop" id="authModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+      <button type="button" class="modal-cerrar" id="cerrarModal" aria-label="Cerrar">&times;</button>
+      <div class="modal-tabs">
+        <button type="button" class="tab-btn activo" data-tab="login">Iniciar sesión</button>
+        <button type="button" class="tab-btn" data-tab="registro">Crear cuenta</button>
+      </div>
+      <h2 id="modalTitulo">Inicia sesión</h2>
+      <p class="modal-sub" id="modalSub">Ingresa con tu cuenta para subir proyectos y comentar en los ramos.</p>
+      <div class="alerta-error" id="authError" hidden></div>
+      <form id="authForm">
+        <div class="campo" id="campoNombre" hidden>
+          <label for="authNombre">Nombre completo</label>
+          <input type="text" id="authNombre" maxlength="80" placeholder="Ej: Carlos Araya">
+        </div>
+        <div class="campo">
+          <label for="authEmail">Correo electrónico</label>
+          <input type="email" id="authEmail" required maxlength="120" placeholder="tu.correo@ejemplo.cl">
+        </div>
+        <div class="campo">
+          <label for="authPassword">Contraseña</label>
+          <input type="password" id="authPassword" required minlength="6" placeholder="Mínimo 6 caracteres">
+        </div>
+        <button type="submit" class="btn-primario btn-full" id="authSubmit">Entrar</button>
+      </form>
+    </div>
+  </div>
+
   <script>
     let datos = null;
     let areaActiva = null;
+    let estadoAuth = { autenticado: false, usuario: null, csrf_token: "" };
+    let modoAuth = "login";
 
     const $ = id => document.getElementById(id);
 
@@ -45,7 +85,7 @@
     }
 
     function normaliza(s) {
-      return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
     }
 
     function textoSobre(hex) {
@@ -54,19 +94,109 @@
       return luz > 0.6 ? "#0f2a43" : "#ffffff";
     }
 
+    function pintarAuthBar() {
+      const bar = $("authBar");
+      bar.innerHTML = "";
+      if (estadoAuth.autenticado && estadoAuth.usuario) {
+        const saludo = crear("span", "user-badge", "Hola, " + estadoAuth.usuario.nombre);
+        const btnSalir = crear("button", "btn-nav btn-nav-sec", "Cerrar sesión");
+        btnSalir.type = "button";
+        btnSalir.addEventListener("click", cerrarSesion);
+        bar.append(saludo, btnSalir);
+      } else {
+        const btnLogin = crear("button", "btn-nav btn-nav-sec", "Iniciar sesión");
+        btnLogin.type = "button";
+        btnLogin.addEventListener("click", () => abrirModal("login"));
+        const btnReg = crear("button", "btn-nav btn-nav-pri", "Registrarse");
+        btnReg.type = "button";
+        btnReg.addEventListener("click", () => abrirModal("registro"));
+        bar.append(btnLogin, btnReg);
+      }
+    }
+
+    function abrirModal(modo) {
+      modoAuth = modo;
+      $("authError").hidden = true;
+      $("authForm").reset();
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("activo", b.dataset.tab === modo));
+      if (modo === "registro") {
+        $("modalTitulo").textContent = "Crear cuenta";
+        $("modalSub").textContent = "Regístrate para publicar proyectos y participar en el foro de cada asignatura.";
+        $("campoNombre").hidden = false;
+        $("authNombre").required = true;
+        $("authSubmit").textContent = "Registrarme";
+      } else {
+        $("modalTitulo").textContent = "Inicia sesión";
+        $("modalSub").textContent = "Ingresa con tu cuenta para subir proyectos y comentar en los ramos.";
+        $("campoNombre").hidden = true;
+        $("authNombre").required = false;
+        $("authSubmit").textContent = "Entrar";
+      }
+      $("authModal").hidden = false;
+    }
+
+    function cerrarModal() {
+      $("authModal").hidden = true;
+    }
+
+    $("cerrarModal").addEventListener("click", cerrarModal);
+    $("authModal").addEventListener("click", e => { if (e.target === $("authModal")) cerrarModal(); });
+    document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => abrirModal(b.dataset.tab)));
+
+    $("authForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      $("authError").hidden = true;
+      const payload = {
+        nombre: $("authNombre").value.trim(),
+        email: $("authEmail").value.trim(),
+        password: $("authPassword").value
+      };
+      try {
+        const res = await fetch("auth.php?accion=" + modoAuth, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          $("authError").textContent = data.error || "Error al procesar la solicitud.";
+          $("authError").hidden = false;
+          return;
+        }
+        estadoAuth = { autenticado: true, usuario: data.usuario, csrf_token: data.csrf_token };
+        pintarAuthBar();
+        cerrarModal();
+      } catch {
+        $("authError").textContent = "No se pudo conectar con el servidor.";
+        $("authError").hidden = false;
+      }
+    });
+
+    async function cerrarSesion() {
+      await fetch("auth.php?accion=logout", { method: "POST" });
+      estadoAuth = { autenticado: false, usuario: null, csrf_token: "" };
+      pintarAuthBar();
+    }
+
     function pintar() {
       const areas = {};
       datos.areas.forEach(a => areas[a.id] = a);
 
       const estad = $("estadisticas");
+      estad.innerHTML = "";
       const semestres = new Set(datos.ramos.map(r => r.semestre)).size;
-      [[semestres, "semestres"], [datos.ramos.length, "ramos"]].forEach(([n, t]) => {
+      [
+        [semestres, "semestres"],
+        [datos.ramos.length, "ramos"],
+        [datos.total_proyectos || 0, "proyectos compartidos"]
+      ].forEach(([n, t]) => {
         const s = crear("span");
         s.append(crear("b", "", n), " " + t);
         estad.appendChild(s);
       });
 
       const leyenda = $("leyenda");
+      leyenda.innerHTML = "";
       datos.areas.forEach(a => {
         const b = crear("button", "chip");
         b.type = "button";
@@ -92,12 +222,17 @@
         col.appendChild(crear("h2", "", "Semestre " + sem));
         porSemestre[sem].forEach(r => {
           const a = areas[r.area_id];
-          const el = crear("a", "ramo", r.nombre);
+          const el = crear("a", "ramo");
           el.href = "ramo.html?id=" + r.id;
           el.style.background = a.color;
           el.style.color = textoSobre(a.color);
           el.dataset.area = r.area_id;
           el.dataset.nombre = normaliza(r.nombre);
+          el.appendChild(crear("span", "ramo-nombre", r.nombre));
+          if (r.proyectos_count > 0) {
+            const badge = crear("span", "ramo-badge", r.proyectos_count + (r.proyectos_count === 1 ? " proyecto" : " proyectos"));
+            el.appendChild(badge);
+          }
           col.appendChild(el);
         });
         malla.appendChild(col);
@@ -118,10 +253,18 @@
 
     $("buscador").addEventListener("input", filtrar);
 
-    fetch("api.php")
-      .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(d => { datos = d; pintar(); })
+    Promise.all([
+      fetch("auth.php?accion=estado").then(r => r.json()).catch(() => ({ autenticado: false })),
+      fetch("api.php").then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    ])
+      .then(([auth, d]) => {
+        estadoAuth = auth;
+        pintarAuthBar();
+        datos = d;
+        pintar();
+      })
       .catch(() => {
+        pintarAuthBar();
         $("malla").innerHTML = "";
         $("malla").appendChild(crear("p", "error", "No se pudo cargar la malla. Revisa la conexión con la base de datos."));
       });

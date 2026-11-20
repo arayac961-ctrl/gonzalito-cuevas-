@@ -1,4 +1,4 @@
--- Malla curricular: Ingeniería Civil en Computación e Informática
+-- Malla curricular + Foro de Proyectos: Ingeniería Civil en Computación e Informática
 -- Importar desde phpMyAdmin (pestaña "Importar") o con: sudo mysql < database.sql
 SET NAMES utf8mb4;
 
@@ -8,6 +8,9 @@ CREATE DATABASE IF NOT EXISTS malla_db
 
 USE malla_db;
 
+DROP TABLE IF EXISTS comentarios;
+DROP TABLE IF EXISTS proyectos;
+DROP TABLE IF EXISTS usuarios;
 DROP TABLE IF EXISTS contenidos;
 DROP TABLE IF EXISTS ramos;
 DROP TABLE IF EXISTS areas;
@@ -35,6 +38,42 @@ CREATE TABLE contenidos (
   orden TINYINT NOT NULL,
   tema VARCHAR(200) NOT NULL,
   FOREIGN KEY (ramo_id) REFERENCES ramos(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE usuarios (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nombre VARCHAR(80) NOT NULL,
+  email VARCHAR(120) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  rol ENUM('estudiante', 'admin') NOT NULL DEFAULT 'estudiante',
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE proyectos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  ramo_id INT NOT NULL,
+  usuario_id INT NOT NULL,
+  titulo VARCHAR(160) NOT NULL,
+  descripcion TEXT NOT NULL,
+  repo_url VARCHAR(255) DEFAULT NULL,
+  archivo_nombre VARCHAR(255) DEFAULT NULL,
+  archivo_ruta VARCHAR(255) DEFAULT NULL,
+  archivo_tamano INT UNSIGNED DEFAULT NULL,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ramo_fecha (ramo_id, creado_en DESC),
+  FOREIGN KEY (ramo_id) REFERENCES ramos(id) ON DELETE CASCADE,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE comentarios (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  proyecto_id INT NOT NULL,
+  usuario_id INT NOT NULL,
+  contenido TEXT NOT NULL,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_proyecto_fecha (proyecto_id, creado_en ASC),
+  FOREIGN KEY (proyecto_id) REFERENCES proyectos(id) ON DELETE CASCADE,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 INSERT INTO areas (id, nombre, color) VALUES
